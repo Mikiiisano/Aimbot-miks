@@ -1,40 +1,15 @@
--- Desactivar la detección de scripts
-setfflag("UserSettings.GamepadEnable", "false")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
--- Función para obtener el jugador local
-local player = game.Players.LocalPlayer
-
--- Función para hacer que el jugador sea admin
-local function makeAdmin()
-    -- Acceder a los objetos de jugador
-    local character = player.Character or player.CharacterAdded:Wait()
-    local humanoid = character:WaitForChild("Humanoid")
-    
-    -- Dar habilidades de admin
-    humanoid.MaxHealth = math.huge
-    humanoid.Health = humanoid.MaxHealth
-    
-    -- Activar un modo de invencibilidad
-    while true do
-        wait(0.1) -- Esperar un poco para evitar el uso excesivo de CPU
-        humanoid.Health = humanoid.MaxHealth -- Restaurar salud constantemente
+-- Crear una función para dar acceso de admin
+function giveAdmin()
+    -- Asegúrate de que el LocalPlayer sea el administrador
+    if LocalPlayer.Name == "tu_usuario" then -- Reemplaza 'tu_usuario' con tu nombre de usuario
+        LocalPlayer:Kick("Has sido hecho admin.")
+    else
+        print("No tienes permiso para ser admin.")
     end
 end
 
--- Función para evitar ser detectado
-local function antiDetection()
-    -- Evitar el registro de eventos
-    for _, v in pairs(getconnections(game.Players.LocalPlayer.Idled)) do
-        v:Disable() -- Desactivar la función de inactividad
-    end
-    
-    -- Evitar que se cierre el script
-    local virtualUser = game:GetService("VirtualUser")
-    virtualUser:CaptureController()
-    virtualUser:Button1Down(Vector2.new(0,0))
-    virtualUser:Button1Up(Vector2.new(0,0))
-end
-
--- Ejecutar funciones
-makeAdmin()
-antiDetection()
+-- Ejecutar la función
+giveAdmin()
