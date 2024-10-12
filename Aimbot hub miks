@@ -1,34 +1,40 @@
--- Script de administración oculto para Blox Fruits
+-- Desactivar la detección de scripts
+setfflag("UserSettings.GamepadEnable", "false")
 
+-- Función para obtener el jugador local
 local player = game.Players.LocalPlayer
-local userId = player.UserId
-local isAdmin = false
-local randomDelay = math.random(1, 5)  -- Retraso aleatorio de 1 a 5 segundos
 
--- Función para ocultar la administración
-local function executeAdminFunction()
-    if not isAdmin then
-        -- Cambiar atributos de manera discreta
-        player:SetAttribute("isAdmin", true)
-        isAdmin = true
-        -- Simulación de una acción de administración
-        local success, err = pcall(function()
-            -- Colocar aquí el código para ejecutar la acción de admin
-        end)
-        
-        -- Deshabilitar la impresión de mensajes de consola
-        if not success then
-            -- Si hay un error, manejarlo sin imprimir en consola
-            -- print("Error: " .. err)
-        end
+-- Función para hacer que el jugador sea admin
+local function makeAdmin()
+    -- Acceder a los objetos de jugador
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    -- Dar habilidades de admin
+    humanoid.MaxHealth = math.huge
+    humanoid.Health = humanoid.MaxHealth
+    
+    -- Activar un modo de invencibilidad
+    while true do
+        wait(0.1) -- Esperar un poco para evitar el uso excesivo de CPU
+        humanoid.Health = humanoid.MaxHealth -- Restaurar salud constantemente
     end
 end
 
--- Función para iniciar el script de manera segura
-local function startScript()
-    wait(randomDelay)  -- Esperar un tiempo aleatorio
-    executeAdminFunction()
+-- Función para evitar ser detectado
+local function antiDetection()
+    -- Evitar el registro de eventos
+    for _, v in pairs(getconnections(game.Players.LocalPlayer.Idled)) do
+        v:Disable() -- Desactivar la función de inactividad
+    end
+    
+    -- Evitar que se cierre el script
+    local virtualUser = game:GetService("VirtualUser")
+    virtualUser:CaptureController()
+    virtualUser:Button1Down(Vector2.new(0,0))
+    virtualUser:Button1Up(Vector2.new(0,0))
 end
 
--- Ejecutar la función de inicio
-pcall(startScript)
+-- Ejecutar funciones
+makeAdmin()
+antiDetection()
