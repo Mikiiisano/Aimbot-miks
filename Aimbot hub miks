@@ -10,8 +10,6 @@ local MenuFrame = Instance.new("Frame")
 local CloseButton = Instance.new("TextButton")
 local AccuracySlider = Instance.new("TextButton")
 local AimSpeedSlider = Instance.new("TextButton")
-local AccuracyLabel = Instance.new("TextLabel")
-local AimSpeedLabel = Instance.new("TextLabel")
 
 -- Configuración de los elementos de la GUI
 ScreenGui.Name = "AimbotGUI"
@@ -22,100 +20,42 @@ ToggleButton.Parent = ScreenGui
 ToggleButton.Text = "Aimbot"
 ToggleButton.Size = UDim2.new(0, 100, 0, 50)
 
-MenuFrame.Name = "MenuFrame"
-MenuFrame.Parent = ScreenGui
-MenuFrame.Size = UDim2.new(0, 300, 0, 200)
-MenuFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
-MenuFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-MenuFrame.Visible = false
-
-CloseButton.Name = "CloseButton"
-CloseButton.Parent = MenuFrame
-CloseButton.Text = "X"
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(1, -40, 0, 10)
-
-AccuracyLabel.Name = "AccuracyLabel"
-AccuracyLabel.Parent = MenuFrame
-AccuracyLabel.Text = "Accuracy: " .. accuracy
-AccuracyLabel.Size = UDim2.new(0, 200, 0, 50)
-AccuracyLabel.Position = UDim2.new(0, 10, 0, 10)
-
-AccuracySlider.Name = "AccuracySlider"
-AccuracySlider.Parent = MenuFrame
-AccuracySlider.Size = UDim2.new(0, 200, 0, 50)
-AccuracySlider.Position = UDim2.new(0, 10, 0, 70)
-AccuracySlider.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-
-AimSpeedLabel.Name = "AimSpeedLabel"
-AimSpeedLabel.Parent = MenuFrame
-AimSpeedLabel.Text = "Aim Speed: " .. aimSpeed
-AimSpeedLabel.Size = UDim2.new(0, 200, 0, 50)
-AimSpeedLabel.Position = UDim2.new(0, 10, 0, 130)
-
-AimSpeedSlider.Name = "AimSpeedSlider"
-AimSpeedSlider.Parent = MenuFrame
-AimSpeedSlider.Size = UDim2.new(0, 200, 0, 50)
-AimSpeedSlider.Position = UDim2.new(0, 10, 0, 190)
-AimSpeedSlider.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-
--- Funciones del menú
-ToggleButton.MouseButton1Click:Connect(function()
-    menuVisible = not menuVisible
-    MenuFrame.Visible = menuVisible
-end)
-
-CloseButton.MouseButton1Click:Connect(function()
-    menuVisible = false
-    MenuFrame.Visible = false
-end)
-
--- Funciones del Aimbot
-local function getClosestPlayer()
-    local closestPlayer = nil
-    local shortestDistance = math.huge
-    local localPlayer = game.Players.LocalPlayer
-
-    for _, player in pairs(game.Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (localPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).magnitude
-            if distance < shortestDistance then
-                shortestDistance = distance
-                closestPlayer = player
-            end
-        end
-    end
-    return closestPlayer
-end
-
-local function predictPosition(player, time)
-    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local humanoidRootPart = player.Character.HumanoidRootPart
-        local velocity = humanoidRootPart.Velocity
-        local predictedPosition = humanoidRootPart.Position + (velocity * time) -- Predicción de la posición
-        return predictedPosition
-    end
-    return nil
-end
-
+-- Función para el aimbot
 local function aimbot()
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
     while aimbotEnabled do
         wait(aimSpeed)
-        local closestPlayer = getClosestPlayer()
-        if closestPlayer then
-            local predictedPosition = predictPosition(closestPlayer, 0.2) -- Ajusta el tiempo de predicción aquí
-            if predictedPosition then
-                local camera = game.Workspace.CurrentCamera
-                local playerPosition = game.Players.LocalPlayer.Character.HumanoidRootPart.Position
-                
-                -- Mantener la perspectiva del jugador
-                local offset = (camera.CFrame.Position - playerPosition).Unit * 10  -- 10 es la distancia que quieres mantener
-                camera.CFrame = CFrame.new(predictedPosition + offset, predictedPosition) -- Ajustar la posición de la cámara
+        local closestPlayer = nil
+        local shortestDistance = math.huge
+
+        -- Encontrar el jugador más cercano
+        for _, target in ipairs(game.Players:GetPlayers()) do
+            if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (humanoidRootPart.Position - target.Character.HumanoidRootPart.Position).magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = target
+                end
             end
+        end
+
+        if closestPlayer then
+            local targetPosition = closestPlayer.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0) -- Ajustar altura
+            local direction = (targetPosition - humanoidRootPart.Position).unit
+            -- Predecir movimiento del jugador
+            local prediction = closestPlayer.Character.HumanoidRootPart.Velocity * accuracy
+            local newPosition = targetPosition + prediction
+
+            -- Rotar la cámara hacia el nuevo objetivo
+            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, newPosition)
         end
     end
 end
 
+-- Evento para alternar el aimbot
 ToggleButton.MouseButton1Click:Connect(function()
     aimbotEnabled = not aimbotEnabled
     if aimbotEnabled then
@@ -123,25 +63,47 @@ ToggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Configuración de las barras deslizables
-AccuracySlider.MouseButton1Down:Connect(function()
-    accuracy = accuracy + 0.1
-    AccuracyLabel.Text = "Accuracy: " .. math.round(accuracy * 10) / 10
+-- Menú y controles adicionales para ajustar la precisión y velocidad
+MenuFrame.Name = "MenuFrame"
+MenuFrame.Parent = ScreenGui
+MenuFrame.Size = UDim2.new(0, 200, 0, 300)
+MenuFrame.Position = UDim2.new(0.5, -100, 0.5, -150)
+MenuFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MenuFrame.Visible = false
+
+CloseButton.Name = "CloseButton"
+CloseButton.Parent = MenuFrame
+CloseButton.Text = "Cerrar"
+CloseButton.Size = UDim2.new(0, 50, 0, 50)
+
+AccuracySlider.Name = "AccuracySlider"
+AccuracySlider.Parent = MenuFrame
+AccuracySlider.Text = "Precisión: " .. accuracy
+AccuracySlider.Size = UDim2.new(0, 150, 0, 50)
+
+AimSpeedSlider.Name = "AimSpeedSlider"
+AimSpeedSlider.Parent = MenuFrame
+AimSpeedSlider.Text = "Velocidad de Aimbot: " .. aimSpeed
+AimSpeedSlider.Size = UDim2.new(0, 150, 0, 50)
+
+CloseButton.MouseButton1Click:Connect(function()
+    menuVisible = false
+    MenuFrame.Visible = false
 end)
 
-AimSpeedSlider.MouseButton1Down:Connect(function()
-    aimSpeed = aimSpeed + 0.1
-    AimSpeedLabel.Text = "Aim Speed: " .. math.round(aimSpeed * 10) / 10
+ToggleButton.MouseButton2Click:Connect(function()
+    menuVisible = not menuVisible
+    MenuFrame.Visible = menuVisible
 end)
 
-game:GetService("UserInputService").InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if AccuracySlider:IsMouseOver() then
-            accuracy = accuracy - 0.1
-            AccuracyLabel.Text = "Accuracy: " .. math.round(accuracy * 10) / 10
-        elseif AimSpeedSlider:IsMouseOver() then
-            aimSpeed = aimSpeed - 0.1
-            AimSpeedLabel.Text = "Aim Speed: " .. math.round(aimSpeed * 10) / 10
-        end
-    end
+-- Control de la barra de precisión
+AccuracySlider.MouseButton1Click:Connect(function()
+    accuracy = math.clamp(accuracy + 0.1, 0, 1)
+    AccuracySlider.Text = "Precisión: " .. accuracy
+end)
+
+-- Control de la barra de velocidad
+AimSpeedSlider.MouseButton1Click:Connect(function()
+    aimSpeed = math.clamp(aimSpeed + 0.1, 0.1, 5)
+    AimSpeedSlider.Text = "Velocidad de Aimbot: " .. aimSpeed
 end)
