@@ -1,0 +1,135 @@
+local aimbotEnabled = false
+local menuVisible = false
+local accuracy = 1
+local aimSpeed = 0.1
+
+-- Crear interfaz gráfica (GUI)
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("TextButton")
+local MenuFrame = Instance.new("Frame")
+local CloseButton = Instance.new("TextButton")
+local AccuracySlider = Instance.new("TextButton")
+local AimSpeedSlider = Instance.new("TextButton")
+
+-- Configuración de los elementos del GUI
+ScreenGui.Name = "AimbotGUI"
+ScreenGui.Parent = game.CoreGui
+
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = ScreenGui
+ToggleButton.Text = "Aimbot"
+ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+ToggleButton.Position = UDim2.new(0, 50, 0, 50)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Visible = true
+
+MenuFrame.Name = "MenuFrame"
+MenuFrame.Parent = ScreenGui
+MenuFrame.Size = UDim2.new(0, 200, 0, 300)
+MenuFrame.Position = UDim2.new(0, 160, 0, 50)
+MenuFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MenuFrame.Visible = false
+
+CloseButton.Name = "CloseButton"
+CloseButton.Parent = MenuFrame
+CloseButton.Text = "Cerrar"
+CloseButton.Size = UDim2.new(0, 80, 0, 30)
+CloseButton.Position = UDim2.new(0, 60, 0, 250)
+CloseButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+AccuracySlider.Name = "AccuracySlider"
+AccuracySlider.Parent = MenuFrame
+AccuracySlider.Text = "Precisión: "..tostring(accuracy)
+AccuracySlider.Size = UDim2.new(0, 180, 0, 40)
+AccuracySlider.Position = UDim2.new(0, 10, 0, 50)
+AccuracySlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+AccuracySlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+AimSpeedSlider.Name = "AimSpeedSlider"
+AimSpeedSlider.Parent = MenuFrame
+AimSpeedSlider.Text = "Velocidad de apuntado: "..tostring(aimSpeed)
+AimSpeedSlider.Size = UDim2.new(0, 180, 0, 40)
+AimSpeedSlider.Position = UDim2.new(0, 10, 0, 100)
+AimSpeedSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+AimSpeedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Funciones para abrir y cerrar el menú
+ToggleButton.MouseButton1Click:Connect(function()
+    menuVisible = not menuVisible
+    MenuFrame.Visible = menuVisible
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    menuVisible = false
+    MenuFrame.Visible = false
+end)
+
+-- Funciones para ajustar la precisión y velocidad de apuntado
+AccuracySlider.MouseButton1Click:Connect(function()
+    accuracy = accuracy + 0.1
+    if accuracy > 3 then accuracy = 1 end
+    AccuracySlider.Text = "Precisión: "..tostring(accuracy)
+end)
+
+AimSpeedSlider.MouseButton1Click:Connect(function()
+    aimSpeed = aimSpeed + 0.05
+    if aimSpeed > 1 then aimSpeed = 0.1 end
+    AimSpeedSlider.Text = "Velocidad de apuntado: "..tostring(aimSpeed)
+end)
+
+-- Función de aimbot
+local function getClosestPlayer()
+    local players = game.Players:GetPlayers()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+
+    for _, player in pairs(players) do
+        if player ~= game.Players.LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (player.Character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closestPlayer = player
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- Aimbot activación y seguimiento
+game:GetService("RunService").RenderStepped:Connect(function()
+    if aimbotEnabled then
+        local closestPlayer = getClosestPlayer()
+        if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local targetPos = closestPlayer.Character.HumanoidRootPart.Position
+            local camera = game.Workspace.CurrentCamera
+            local direction = (targetPos - camera.CFrame.p).unit
+            local newCFrame = CFrame.new(camera.CFrame.p, camera.CFrame.p + direction * accuracy)
+            camera.CFrame = camera.CFrame:Lerp(newCFrame, aimSpeed)
+        end
+    end
+end)
+
+-- Activar y desactivar el Aimbot
+ToggleButton.MouseButton1Click:Connect(function()
+    aimbotEnabled = not aimbotEnabled
+    if aimbotEnabled then
+        ToggleButton.Text = "Aimbot: ON"
+    else
+        ToggleButton.Text = "Aimbot: OFF"
+    end
+end)
+
+-- Soporte para móviles (touch)
+if game:GetService("UserInputService").TouchEnabled then
+    ToggleButton.TouchTap:Connect(function()
+        aimbotEnabled = not aimbotEnabled
+        if aimbotEnabled then
+            ToggleButton.Text = "Aimbot: ON"
+        else
+            ToggleButton.Text = "Aimbot: OFF"
+        end
+    end)
+end
