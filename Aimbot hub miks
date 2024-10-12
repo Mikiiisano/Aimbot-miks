@@ -1,79 +1,34 @@
+-- Script de administración oculto para Blox Fruits
+
 local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local rootPart = character:WaitForChild("HumanoidRootPart")
-local intelligenceLevel = 10 -- Máximo nivel de inteligencia
+local userId = player.UserId
+local isAdmin = false
+local randomDelay = math.random(1, 5)  -- Retraso aleatorio de 1 a 5 segundos
 
--- Variables de IA
-local target = nil
-local attacking = false
-local healthThreshold = 50 -- Umbral de salud para atacar o defender
-local learnedBehaviors = {}
-
--- Función para detectar enemigos cercanos
-local function findTarget()
-    local nearestEnemy = nil
-    local nearestDistance = math.huge
-
-    for _, enemy in ipairs(game.Players:GetPlayers()) do
-        if enemy ~= player and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (enemy.Character.HumanoidRootPart.Position - rootPart.Position).magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestEnemy = enemy
-            end
+-- Función para ocultar la administración
+local function executeAdminFunction()
+    if not isAdmin then
+        -- Cambiar atributos de manera discreta
+        player:SetAttribute("isAdmin", true)
+        isAdmin = true
+        -- Simulación de una acción de administración
+        local success, err = pcall(function()
+            -- Colocar aquí el código para ejecutar la acción de admin
+        end)
+        
+        -- Deshabilitar la impresión de mensajes de consola
+        if not success then
+            -- Si hay un error, manejarlo sin imprimir en consola
+            -- print("Error: " .. err)
         end
     end
-
-    return nearestEnemy
 end
 
--- Función para atacar al objetivo
-local function attack(target)
-    if target and target.Character and target.Character:FindFirstChild("Humanoid") then
-        attacking = true
-        -- Código para atacar al objetivo (puedes personalizar esto)
-        print("Atacando a " .. target.Name)
-        target.Character.Humanoid:TakeDamage(10) -- Daño de ejemplo
-    end
+-- Función para iniciar el script de manera segura
+local function startScript()
+    wait(randomDelay)  -- Esperar un tiempo aleatorio
+    executeAdminFunction()
 end
 
--- Función para defenderse
-local function defend()
-    print("Defendiéndose")
-    -- Aquí puedes implementar un mecanismo de defensa, como esquivar o usar habilidades
-end
-
--- Función de aprendizaje
-local function learnBehavior()
-    -- Aprender del entorno y del combate
-    if target and target.Character then
-        table.insert(learnedBehaviors, {target.Name, "Atacado"})
-        print("Aprendiendo a atacar a " .. target.Name)
-    end
-end
-
--- Iniciar el comportamiento de la IA
-local function startBehavior()
-    while true do
-        target = findTarget()
-
-        if target then
-            local targetHealth = target.Character.Humanoid.Health
-            if targetHealth < healthThreshold then
-                defend() -- Defiende si la salud del objetivo es baja
-            else
-                attack(target) -- Ataca al objetivo
-            end
-            learnBehavior() -- Aprende del comportamiento del enemigo
-        else
-            -- Moverse de forma aleatoria si no hay objetivo
-            character:Move(Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)))
-        end
-
-        wait(1) -- Esperar un segundo antes de la siguiente acción
-    end
-end
-
--- Iniciar el comportamiento de la IA
-startBehavior()
+-- Ejecutar la función de inicio
+pcall(startScript)
