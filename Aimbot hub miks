@@ -1,108 +1,162 @@
-local aimbotEnabled = false
-local menuVisible = false
-local accuracy = 1
-local aimSpeed = 0.1
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Crear interfaz gráfica (GUI)
-local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local MenuFrame = Instance.new("Frame")
-local CloseButton = Instance.new("TextButton")
-local AccuracySlider = Instance.new("Slider")
-local AimSpeedSlider = Instance.new("Slider")
+-- Variables de aprendizaje
+local learningRate = 0.1 -- Tasa de aprendizaje
+local rewards = {} -- Tabla para almacenar recompensas
+local stateHistory = {} -- Historial de estados
+local maxRewards = 10 -- Máximo de recompensas para reiniciar
+local safeDistance = 20 -- Distancia para moverse a un lugar seguro
+local attackDistance = 15 -- Distancia para atacar al enemigo
+local healthThreshold = 50 -- Umbral de salud para atacar
+local missionObjectives = {} -- Objetivos de misión
+local previousEnemyPosition = nil -- Para seguimiento de enemigos
 
--- Configuración de los elementos del GUI
-ScreenGui.Name = "AimbotGUI"
-ScreenGui.Parent = game.CoreGui
+-- Función para mover al bot en una dirección aleatoria
+function moveRandomly()
+    local randomDirection = Vector3.new(math.random(-1, 1), 0, math.random(-1, 1)).unit
+    local targetPosition = rootPart.Position + randomDirection * 10 -- Mueve 10 studs en dirección aleatoria
+    humanoid:MoveTo(targetPosition)
+end
 
-ToggleButton.Name = "ToggleButton"
-ToggleButton.Parent = ScreenGui
-ToggleButton.Text = "Aimbot"
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
-ToggleButton.Position = UDim2.new(0, 10, 0, 10)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-MenuFrame.Name = "MenuFrame"
-MenuFrame.Parent = ScreenGui
-MenuFrame.Size = UDim2.new(0, 300, 0, 200)
-MenuFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
-MenuFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-MenuFrame.Visible = false
-
-CloseButton.Name = "CloseButton"
-CloseButton.Parent = MenuFrame
-CloseButton.Text = "X"
-CloseButton.Size = UDim2.new(0, 50, 0, 50)
-CloseButton.Position = UDim2.new(1, -60, 0, 10)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-
--- Barra de precisión
-AccuracySlider.Name = "AccuracySlider"
-AccuracySlider.Parent = MenuFrame
-AccuracySlider.Size = UDim2.new(0, 200, 0, 50)
-AccuracySlider.Position = UDim2.new(0.5, -100, 0.2, 0)
-AccuracySlider.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-
--- Barra de velocidad de apuntado
-AimSpeedSlider.Name = "AimSpeedSlider"
-AimSpeedSlider.Parent = MenuFrame
-AimSpeedSlider.Size = UDim2.new(0, 200, 0, 50)
-AimSpeedSlider.Position = UDim2.new(0.5, -100, 0.4, 0)
-AimSpeedSlider.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-
--- Funciones de GUI
-ToggleButton.MouseButton1Click:Connect(function()
-    aimbotEnabled = not aimbotEnabled
-    ToggleButton.Text = aimbotEnabled and "Aimbot ON" or "Aimbot OFF"
-    MenuFrame.Visible = aimbotEnabled and not menuVisible
-end)
-
-CloseButton.MouseButton1Click:Connect(function()
-    menuVisible = false
-    MenuFrame.Visible = false
-end)
-
-MenuFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        menuVisible = not menuVisible
-        MenuFrame.Visible = menuVisible
+-- Función para recoger objetos
+function collectItems()
+    for _, item in pairs(workspace:GetChildren()) do
+        if item:IsA("Part") and item.Name == "Collectible" and (item.Position - rootPart.Position).magnitude < 5 then
+            item:Destroy() -- Recoge el objeto destruyéndolo
+            table.insert(rewards, 1) -- Incrementa la recompensa
+        end
     end
-end)
+end
 
--- Función principal del aimbot
-local runService = game:GetService("RunService")
-
-runService.RenderStepped:Connect(function()
-    if aimbotEnabled then
-        local player = game.Players.LocalPlayer
-        local character = player.Character or player.CharacterAdded:Wait()
-        local hrp = character:WaitForChild("HumanoidRootPart")
-        local closestPlayer = nil
-        local closestDistance = math.huge
-
-        -- Buscar el jugador más cercano
-        for _, target in ipairs(game.Players:GetPlayers()) do
-            if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                local targetHRP = target.Character.HumanoidRootPart
-                local distance = (hrp.Position - targetHRP.Position).magnitude
-
-                if distance < closestDistance then
-                    closestDistance = distance
-                    closestPlayer = target
-                end
+-- Función para detectar enemigos
+function detectEnemies()
+    local enemies = {}
+    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (otherPlayer.Character.HumanoidRootPart.Position - rootPart.Position).magnitude
+            if distance < 30 then -- Distancia para considerar a un jugador como enemigo
+                table.insert(enemies, otherPlayer)
             end
         end
+    end
+    return enemies
+end
 
-        if closestPlayer then
-            local targetHRP = closestPlayer.Character.HumanoidRootPart
-            local aimPosition = targetHRP.Position + (targetHRP.Velocity * accuracy) -- Predicción simple
+-- Función para atacar a un enemigo
+function attackEnemy(enemy)
+    local enemyHumanoid = enemy.Character:FindFirstChild("Humanoid")
+    if enemyHumanoid then
+        enemyHumanoid:TakeDamage(10) -- Da daño al enemigo
+        previousEnemyPosition = enemy.Character.HumanoidRootPart.Position -- Guardar posición del enemigo
+    end
+end
 
-            -- Ajustar la cámara hacia el objetivo
-            local camera = workspace.CurrentCamera
-            local direction = (aimPosition - hrp.Position).unit
-            camera.CFrame = CFrame.new(hrp.Position, hrp.Position + direction)
+-- Función para defenderse y contraatacar si es atacado
+function defendAndCounterattack()
+    local enemies = detectEnemies()
+    if #enemies > 0 then
+        local enemy = enemies[1] -- Atacar solo al primer enemigo detectado
+        local distanceToEnemy = (enemy.Character.HumanoidRootPart.Position - rootPart.Position).magnitude
+        
+        if distanceToEnemy < attackDistance then
+            attackEnemy(enemy) -- Atacar si el enemigo está cerca
+        else
+            local escapeDirection = (rootPart.Position - enemy.Character.HumanoidRootPart.Position).unit
+            local escapePosition = rootPart.Position + escapeDirection * safeDistance
+            humanoid:MoveTo(escapePosition) -- Moverse a una posición segura
         end
     end
-end)
+end
+
+-- Función para analizar el entorno
+function analyzeEnvironment()
+    -- Detectar obstáculos
+    for _, obstacle in pairs(workspace:GetChildren()) do
+        if obstacle:IsA("Part") and (obstacle.Position - rootPart.Position).magnitude < 10 then
+            print("Obstáculo detectado:", obstacle.Name)
+            -- Aquí podrías agregar lógica para esquivar o cambiar de dirección
+        end
+    end
+end
+
+-- Función para detectar y registrar objetivos de misión
+function detectMissionObjectives()
+    for _, objective in pairs(workspace:GetChildren()) do
+        if objective:IsA("Part") and objective.Name == "MissionObjective" then
+            local distance = (objective.Position - rootPart.Position).magnitude
+            if distance < 10 then
+                table.insert(missionObjectives, objective)
+                print("Misión detectada:", objective.Name)
+            end
+        end
+    end
+end
+
+-- Función para evaluar el estado del bot
+function evaluateState()
+    local state = {
+        rewards = #rewards, -- Estado basado en recompensas
+        health = humanoid.Health, -- Salud del bot
+        enemiesDetected = #detectEnemies(), -- Número de enemigos detectados
+        objectivesCount = #missionObjectives -- Conteo de objetivos de misión
+    }
+    return state
+end
+
+-- Función para ajustar comportamiento basado en el estado
+function adjustBehavior()
+    local state = evaluateState()
+    
+    -- Si el bot ha alcanzado un número máximo de recompensas, reinicia
+    if #rewards >= maxRewards then
+        print("Reiniciando recompensas")
+        rewards = {}
+    end
+    
+    -- Ajuste de comportamiento basado en la salud
+    if state.health < healthThreshold then
+        print("Baja salud, buscando cobertura.")
+    end
+end
+
+-- Función de aprendizaje dinámico
+function dynamicLearning()
+    -- Aprender de la posición anterior del enemigo
+    if previousEnemyPosition then
+        local distanceMoved = (previousEnemyPosition - rootPart.Position).magnitude
+        if distanceMoved > 5 then
+            print("Aprendiendo de la posición del enemigo.")
+            -- Aquí podrías ajustar la estrategia o comportamiento del bot
+        end
+    end
+end
+
+-- Función principal del bot
+function main()
+    while true do
+        analyzeEnvironment() -- Analiza el entorno
+        detectMissionObjectives() -- Detectar objetivos de misión
+        
+        local enemies = detectEnemies()
+        
+        if #enemies > 0 then
+            defendAndCounterattack() -- Defiende y contraataca si hay enemigos cercanos
+        else
+            moveRandomly() -- Mueve aleatoriamente si no hay enemigos
+        end
+        
+        collectItems()
+        adjustBehavior()
+        dynamicLearning() -- Aprendizaje dinámico
+        
+        -- Almacena el historial del estado actual
+        table.insert(stateHistory, evaluateState())
+        
+        wait(2) -- Espera un momento antes de la siguiente acción
+    end
+end
+
+main()
